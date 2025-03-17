@@ -209,6 +209,38 @@ textarea {
 .stRadio label, .stSelectbox p, .stSlider p {
     color: rgba(250, 250, 250, 0.8) !important;
 }
+/* Copy Button Styles */
+.copy-button {
+    background-color: rgba(80, 80, 80, 0.8);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-top: 8px;
+    float: right;
+}
+.copy-button:hover {
+    background-color: rgba(100, 100, 100, 0.9);
+}
+.copy-success {
+    display: inline-block;
+    background-color: rgba(0, 150, 0, 0.8);
+    color: white;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 14px;
+    margin-right: 10px;
+    margin-top: 8px;
+    float: right;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+.copy-success.show {
+    opacity: 1;
+}
 </style>
 
 <script>
@@ -234,6 +266,60 @@ document.addEventListener('DOMContentLoaded', function() {
     // Run immediately and periodically check
     fixDropdowns();
     setInterval(fixDropdowns, 1000);
+    
+    // Copy button functionality
+    function setupCopyButton() {
+        // Check if there's a result displayed
+        const resultArea = document.querySelector('.stTextArea textarea:not([placeholder="Enter your email text here..."])');
+        
+        if (!resultArea) return;
+        
+        // Check if we've already added the copy button
+        if (document.getElementById('copy-button-container')) return;
+        
+        // Get the container for the textarea
+        const textAreaContainer = resultArea.closest('.stTextArea');
+        const parentContainer = textAreaContainer.parentElement;
+        
+        // Create button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.id = 'copy-button-container';
+        buttonContainer.style.clear = 'both';
+        buttonContainer.style.width = '100%';
+        buttonContainer.style.overflow = 'hidden'; // For proper float containment
+        
+        // Create success message
+        const successMsg = document.createElement('div');
+        successMsg.className = 'copy-success';
+        successMsg.innerText = 'Copied!';
+        
+        // Create copy button
+        const copyButton = document.createElement('button');
+        copyButton.className = 'copy-button';
+        copyButton.innerText = 'Copy';
+        
+        // Add event listener to copy button
+        copyButton.addEventListener('click', function() {
+            resultArea.select();
+            document.execCommand('copy');
+            
+            // Show success message
+            successMsg.classList.add('show');
+            setTimeout(function() {
+                successMsg.classList.remove('show');
+            }, 2000);
+        });
+        
+        // Add the elements to the container
+        buttonContainer.appendChild(successMsg);
+        buttonContainer.appendChild(copyButton);
+        
+        // Insert after textarea
+        parentContainer.insertBefore(buttonContainer, textAreaContainer.nextSibling);
+    }
+    
+    // Run the setup function periodically to catch dynamically added elements
+    setInterval(setupCopyButton, 1000);
 });
 </script>
 """
@@ -372,12 +458,9 @@ with col3:
     tone_options = ["Formal", "Balanced", "Conversational", "Friendly"]
     human_tone = st.radio("Tone Selection", tone_options, index=1, horizontal=True, label_visibility="collapsed")
     
-    # Added a small margin to create some separation
-    st.markdown('<div style="margin-top: 1rem;"></div>', unsafe_allow_html=True)
-    
     # Personalization info
     st.markdown("""
-    <div style="display: flex; align-items: center; margin-bottom: 4px;">
+    <div style="display: flex; align-items: center; margin-bottom: 4px; margin-top: 12px;">
         <div style="font-size: 14px; font-weight: 500; margin-right: 5px;">Personalization</div>
         <div class="tooltip">
             <span class="info-icon">ⓘ</span>
@@ -389,6 +472,35 @@ with col3:
     # Personalization level - horizontal radio buttons
     personalization_options = ["Light", "Medium", "Heavy"]
     personalization = st.radio("Personalization Level", personalization_options, index=1, horizontal=True, label_visibility="collapsed")
+    
+    # Conciseness info - MOVED BELOW PERSONALIZATION
+    st.markdown("""
+    <div style="display: flex; align-items: center; margin-bottom: 4px; margin-top: 12px;">
+        <div style="font-size: 14px; font-weight: 500; margin-right: 5px;">Conciseness</div>
+        <div class="tooltip">
+            <span class="info-icon">ⓘ</span>
+            <span class="tooltiptext">Controls the length and directness of your email. Higher values create shorter, more to-the-point messages with stricter word limits.</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Conciseness slider with word count hint
+    conciseness = st.slider("Conciseness Level", 1, 10, 6, key="concise", label_visibility="collapsed")
+    
+    # Show word count hint based on conciseness level
+    word_limit = "250"
+    if conciseness >= 8:
+        word_limit = "100"
+    elif conciseness >= 6:
+        word_limit = "150" 
+    elif conciseness >= 4:
+        word_limit = "200"
+    
+    st.markdown(f"""
+    <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; margin-left: 8px;">
+        Word limit: approximately {word_limit} words
+    </div>
+    """, unsafe_allow_html=True)
 
 # Action buttons in a row
 col1, col2 = st.columns(2)
@@ -402,9 +514,21 @@ st.markdown('<div class="thin-header"><div class="section-header" style="margin-
 output_placeholder = st.empty()
 status_placeholder = st.empty()
 
+# Function to display output with copy button
+def display_output_with_copy_button(text, key_suffix):
+    col1 = st.columns(1)[0]
+    with col1:
+        output_textarea = st.text_area("Result", value=text, height=300, label_visibility="collapsed", key=f"output_{key_suffix}")
+        if text.strip():  # Only show copy button if there's text
+            if st.button("Copy to Clipboard", key=f"copy_btn_{key_suffix}", help="Copy the optimized email to clipboard"):
+                st.session_state.clipboard = text
+                st.success("Copied to clipboard!")
+
 # Initialize session state
 if 'result_displayed' not in st.session_state:
     st.session_state.result_displayed = False
+if 'clipboard' not in st.session_state:
+    st.session_state.clipboard = ""
 
 # Define functions for analysis and optimization
 def create_analysis_prompt():
@@ -416,8 +540,9 @@ Please provide scores on a scale of 1-10 for each of these parameters:
 1. Persuasiveness: How compelling is the email in driving action?
 2. Confidence: How certain and authoritative is the tone?
 3. Urgency: How well does it create a sense of timeliness?
-4. Tone: Is it formal, friendly, conversational, or neutral?
-5. Personalization: How customized does the message feel?
+4. Conciseness: How brief and to-the-point is the message?
+5. Tone: Is it formal, friendly, conversational, or neutral?
+6. Personalization: How customized does the message feel?
 
 For each parameter:
 - Provide a numerical score (1-10)
@@ -440,6 +565,10 @@ URGENCY: X/10
 - Assessment: [Brief assessment]
 - Improvement: [Specific suggestion]
 
+CONCISENESS: X/10
+- Assessment: [Brief assessment]
+- Improvement: [Specific suggestion]
+
 TONE: [Formal/Friendly/Conversational/Neutral] (X/10)
 - Assessment: [Brief assessment]
 - Improvement: [Specific suggestion]
@@ -452,10 +581,47 @@ OVERALL EMAIL TYPE: [Identify what type of email this appears to be]
 - Strengths: [1-2 key strengths]
 - Primary opportunity: [The single most impactful improvement]"""
 
-def create_optimization_prompt(email, stage, industry, persuasiveness, confidence, urgency, human_tone, personalization):
+def create_optimization_prompt(email, stage, industry, persuasiveness, confidence, urgency, conciseness, human_tone, personalization):
     # Check if custom industry is provided
     if industry == "Other" and custom_industry:
         industry = custom_industry
+        
+    # Create conciseness instructions based on slider value (reversed scale - higher = more concise)
+    conciseness_instructions = ""
+    max_words = 0
+    
+    if conciseness >= 8:
+        conciseness_instructions = """
+- Make the email extremely concise and direct
+- Use short sentences and minimal paragraphs
+- Eliminate all unnecessary words and details
+- Focus only on the most essential information
+- Keep the total email UNDER 100 WORDS
+- Brevity is absolutely critical"""
+        max_words = 100
+    elif conciseness >= 6:
+        conciseness_instructions = """
+- Keep the email concise and to-the-point
+- Use clear, direct statements
+- Minimize unnecessary details
+- Keep the total email UNDER 150 WORDS
+- Be brief and direct"""
+        max_words = 150
+    elif conciseness >= 4:
+        conciseness_instructions = """
+- Balance detail with brevity
+- Include important supporting information
+- Use moderate paragraph length
+- Keep the total email UNDER 200 WORDS"""
+        max_words = 200
+    else:
+        conciseness_instructions = """
+- Provide comprehensive detail and context
+- Fully explain benefits and reasoning
+- Use longer, more detailed paragraphs
+- Include supporting evidence and examples
+- Keep the total email UNDER 250 WORDS"""
+        max_words = 250
         
     system_prompt = f"""You are Quollai™, an AI-powered sales email optimizer. Your task is to rewrite the user's email to make it more effective for sales purposes. 
 
@@ -464,6 +630,7 @@ Guidelines:
 - Persuasiveness level: {persuasiveness}/10
 - Confidence level: {confidence}/10
 - Urgency level: {urgency}/10
+- Conciseness level: {conciseness}/10 (HIGHER MEANS MORE CONCISE)
 - Tone style: {human_tone}
 - Personalization level: {personalization}
 
@@ -474,13 +641,19 @@ IMPORTANT HUMAN-LIKE QUALITIES TO MAINTAIN:
 4. Avoid overly perfect grammar or robotic phrasing
 5. Maintain a natural flow while improving persuasiveness
 
+CONCISENESS INSTRUCTIONS (HIGHEST PRIORITY):
+{conciseness_instructions}
+
+WORD COUNT LIMIT: {max_words} WORDS MAXIMUM
+You MUST keep the email under {max_words} words total. This is not a suggestion but a requirement.
+
 SPECIFIC GUIDELINES FOR {stage.upper()}:
 {get_stage_guidelines(stage)}
 
 INDUSTRY-SPECIFIC TONE FOR {industry.upper()}:
 {get_industry_guidelines(industry)}
 
-Your response should be ONLY the optimized email text with no explanations or comments."""
+Your response should be ONLY the optimized email text with no explanations or comments. Count your words carefully and ensure you stay under the {max_words} word limit."""
 
     user_prompt = f"Please optimize this sales email:\n\n{email}"
     
@@ -588,7 +761,7 @@ def get_stage_guidelines(stage):
 - Use a conversational, enthusiastic tone
 - Include a clear call-to-action""",
         
-        "survey_request": """
+        "survey_email": """
 - Explain why their feedback matters
 - Be upfront about time commitment
 - Emphasize how their input will be used
@@ -639,7 +812,7 @@ def get_industry_guidelines(industry):
 - Use terminology familiar to professionals in this field
 - Balance industry knowledge with accessible communication
 - Demonstrate understanding of industry-specific priorities and concerns"""
-        
+    
     guidelines = {
         "technology": """
 - Use forward-looking, innovation-focused language
@@ -718,13 +891,13 @@ def analyze_email(email):
         return f"Error: {str(e)}"
 
 # Function to optimize the email
-def optimize_email(email, stage, industry, persuasiveness, confidence, urgency, human_tone, personalization):
+def optimize_email(email, stage, industry, persuasiveness, confidence, urgency, conciseness, human_tone, personalization):
     # Show status message
     status_placeholder.markdown('<div style="margin-top: 0.5rem;">Optimizing your email...</div>', unsafe_allow_html=True)
     
     try:
         prompt = create_optimization_prompt(email, stage, industry, persuasiveness, 
-                                       confidence, urgency, human_tone, personalization)
+                                       confidence, urgency, conciseness, human_tone, personalization)
         
         response = client.chat.completions.create(
             model="gpt-4",
@@ -752,9 +925,9 @@ if analyze_button:
     else:
         # Get result
         analysis_result = analyze_email(input_email)
-        # Display the result in the placeholder with a unique key
+        # Display the result with copy button
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        output_placeholder.text_area("Result", value=analysis_result, height=300, label_visibility="collapsed", key=f"output_analysis_{timestamp}")
+        display_output_with_copy_button(analysis_result, f"analysis_{timestamp}")
         st.session_state.result_displayed = True
 
 elif optimize_button:
@@ -774,13 +947,14 @@ elif optimize_button:
             persuasiveness,
             confidence,
             urgency,
+            conciseness,  # Added conciseness parameter
             human_tone.lower(),
             personalization.lower()
         )
         
-        # Display the result in the placeholder with a unique key
+        # Display the result with copy button
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-        output_placeholder.text_area("Result", value=optimized_email, height=300, label_visibility="collapsed", key=f"output_optimized_{timestamp}")
+        display_output_with_copy_button(optimized_email, f"optimized_{timestamp}")
         st.session_state.result_displayed = True
 
 else:
