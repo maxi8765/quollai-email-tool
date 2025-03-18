@@ -504,7 +504,7 @@ with col3:
 
 # Action buttons in a row
 col1, col2 = st.columns(2)
-analyze_button = col1.button("ANALYZE EMAIL", use_container_width=True)
+analyze_button = col1.button("ANALYZE DRAFT EMAIL", use_container_width=True)
 optimize_button = col2.button("OPTIMIZE EMAIL", use_container_width=True)
 
 # === LAYER 3: Output Text ===
