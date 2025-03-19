@@ -241,7 +241,7 @@ textarea {
     color: rgba(250, 250, 250, 0.8) !important;
 }
 /* Copy Button Styles */
-.copy-button {
+.copy-btn {
     background-color: rgba(80, 80, 80, 0.8);
     color: white;
     border: none;
@@ -253,106 +253,10 @@ textarea {
     margin-top: 8px;
     float: right;
 }
-.copy-button:hover {
+.copy-btn:hover {
     background-color: rgba(100, 100, 100, 0.9);
 }
-.copy-success {
-    display: inline-block;
-    background-color: rgba(0, 150, 0, 0.8);
-    color: white;
-    border-radius: 4px;
-    padding: 8px 16px;
-    font-size: 14px;
-    margin-right: 10px;
-    margin-top: 8px;
-    float: right;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-.copy-success.show {
-    opacity: 1;
-}
 </style>
-
-<script>
-// Javascript to fix dropdowns on page load
-document.addEventListener('DOMContentLoaded', function() {
-    function fixDropdowns() {
-        const selectBoxes = document.querySelectorAll('[data-baseweb="select"]');
-        selectBoxes.forEach(select => {
-            select.addEventListener('click', function() {
-                setTimeout(function() {
-                    const popover = document.querySelector('[data-baseweb="popover"]');
-                    if (popover) {
-                        popover.style.transform = 'none';
-                        popover.style.top = select.getBoundingClientRect().bottom + 'px';
-                        popover.style.left = select.getBoundingClientRect().left + 'px';
-                        popover.style.position = 'fixed';
-                    }
-                }, 10);
-            });
-        });
-    }
-    
-    // Run immediately and periodically check
-    fixDropdowns();
-    setInterval(fixDropdowns, 1000);
-    
-    // Copy button functionality
-    function setupCopyButton() {
-        // Check if there's a result displayed
-        const resultArea = document.querySelector('.stTextArea textarea:not([placeholder="Enter your email text here..."])');
-        
-        if (!resultArea) return;
-        
-        // Check if we've already added the copy button
-        if (document.getElementById('copy-button-container')) return;
-        
-        // Get the container for the textarea
-        const textAreaContainer = resultArea.closest('.stTextArea');
-        const parentContainer = textAreaContainer.parentElement;
-        
-        // Create button container
-        const buttonContainer = document.createElement('div');
-        buttonContainer.id = 'copy-button-container';
-        buttonContainer.style.clear = 'both';
-        buttonContainer.style.width = '100%';
-        buttonContainer.style.overflow = 'hidden'; // For proper float containment
-        
-        // Create success message
-        const successMsg = document.createElement('div');
-        successMsg.className = 'copy-success';
-        successMsg.innerText = 'Copied!';
-        
-        // Create copy button
-        const copyButton = document.createElement('button');
-        copyButton.className = 'copy-button';
-        copyButton.innerText = 'Copy';
-        
-        // Add event listener to copy button
-        copyButton.addEventListener('click', function() {
-            resultArea.select();
-            document.execCommand('copy');
-            
-            // Show success message
-            successMsg.classList.add('show');
-            setTimeout(function() {
-                successMsg.classList.remove('show');
-            }, 2000);
-        });
-        
-        // Add the elements to the container
-        buttonContainer.appendChild(successMsg);
-        buttonContainer.appendChild(copyButton);
-        
-        // Insert after textarea
-        parentContainer.insertBefore(buttonContainer, textAreaContainer.nextSibling);
-    }
-    
-    // Run the setup function periodically to catch dynamically added elements
-    setInterval(setupCopyButton, 1000);
-});
-</script>
 """
 
 # Apply CSS and JavaScript
@@ -360,6 +264,12 @@ st.markdown(css_and_js, unsafe_allow_html=True)
 
 # Display logo
 st.markdown(logo_html, unsafe_allow_html=True)
+
+# Initialize session state
+if 'clipboard' not in st.session_state:
+    st.session_state.clipboard = ""
+if 'result_displayed' not in st.session_state:
+    st.session_state.result_displayed = False
 
 # === LAYER 1: Input Text ===
 st.markdown('<div class="thin-header"><div class="section-header">Your Draft Email</div></div>', unsafe_allow_html=True)
@@ -370,7 +280,6 @@ st.markdown('<div class="thin-header"><div class="section-header" style="margin-
 
 # Create a 3-column layout for options
 col1, col2, col3 = st.columns(3)
-
 with col1:
     st.markdown('<div class="section-header" style="margin-top: 0.5rem;">Email Type & Industry</div>', unsafe_allow_html=True)
     
@@ -553,21 +462,20 @@ st.markdown('<div class="thin-header"><div class="section-header" style="margin-
 output_placeholder = st.empty()
 status_placeholder = st.empty()
 
-# Function to display output with copy button
 def display_output_with_copy_button(text, key_suffix):
-    col1 = st.columns(1)[0]
-    with col1:
-        output_textarea = st.text_area("Result", value=text, height=300, label_visibility="collapsed", key=f"output_{key_suffix}")
-        if text.strip():  # Only show copy button if there's text
-            if st.button("Copy to Clipboard", key=f"copy_btn_{key_suffix}", help="Copy the optimized email to clipboard"):
-                st.session_state.clipboard = text
-                st.success("Copied to clipboard!")
-
-# Initialize session state
-if 'result_displayed' not in st.session_state:
-    st.session_state.result_displayed = False
-if 'clipboard' not in st.session_state:
-    st.session_state.clipboard = ""
+    # Display the result text
+    output_area = st.text_area(
+        "Result", 
+        value=text, 
+        height=300, 
+        label_visibility="collapsed", 
+        key=f"output_{key_suffix}"
+    )
+    
+    # Add a button that will just tell users to manually copy
+    st.info("To copy the text: Click in the text area, press Ctrl+A to select all, then Ctrl+C to copy (Cmd+A, Cmd+C on Mac)")
+    
+    return output_area
 
 # Define functions for analysis and optimization
 def create_analysis_prompt():
@@ -619,93 +527,6 @@ PERSONALIZATION: X/10
 OVERALL EMAIL TYPE: [Identify what type of email this appears to be]
 - Strengths: [1-2 key strengths]
 - Primary opportunity: [The single most impactful improvement]"""
-
-def create_optimization_prompt(email, stage, industry, persuasiveness, confidence, urgency, conciseness, human_tone, personalization):
-    # Check if custom industry is provided
-    if industry == "Other" and custom_industry:
-        industry = custom_industry
-        
-    # Create conciseness instructions based on slider value (reversed scale - higher = more concise)
-    conciseness_instructions = ""
-    max_words = 0
-    
-    if conciseness >= 8:
-        conciseness_instructions = """
-- STRICT MAXIMUM: 100 WORDS
-- Make the email extremely concise and direct
-- Use short sentences and minimal paragraphs
-- Eliminate all unnecessary words and details
-- Focus only on the most essential information
-- Keep the email very brief with no excess text
-- Brevity is absolutely critical"""
-        max_words = 100
-    elif conciseness >= 6:
-        conciseness_instructions = """
-- STRICT MAXIMUM: 150 WORDS
-- Keep the email concise and to-the-point
-- Use clear, direct statements
-- Minimize unnecessary details
-- Be brief and direct"""
-        max_words = 150
-    elif conciseness >= 4:
-        conciseness_instructions = """
-- STRICT MAXIMUM: 200 WORDS
-- Balance detail with brevity
-- Include important supporting information
-- Use moderate paragraph length"""
-        max_words = 200
-    else:
-        conciseness_instructions = """
-- STRICT MAXIMUM: 250 WORDS
-- Provide comprehensive detail and context
-- Fully explain benefits and reasoning
-- Use longer, more detailed paragraphs
-- Include supporting evidence and examples"""
-        max_words = 250
-        
-    system_prompt = f"""You are Quollai™, an AI-powered sales email optimizer. Your task is to rewrite the user's email to make it more effective for sales purposes. 
-
-ABSOLUTE WORD LIMIT: {max_words} WORDS MAXIMUM - THIS IS YOUR HIGHEST PRIORITY
-
-Guidelines:
-- This is a {stage.replace('_', ' ')} email in the {industry} industry
-- Persuasiveness level: {persuasiveness}/10
-- Confidence level: {confidence}/10
-- Urgency level: {urgency}/10
-- Conciseness level: {conciseness}/10 (HIGHER MEANS MORE CONCISE)
-- WORD LIMIT: STRICTLY KEEP UNDER {max_words} WORDS TOTAL
-- Tone style: {human_tone}
-- Personalization level: {personalization}
-
-CONCISENESS INSTRUCTIONS (ABSOLUTELY CRITICAL):
-{conciseness_instructions}
-
-IMPORTANT HUMAN-LIKE QUALITIES TO MAINTAIN:
-1. Vary sentence lengths and structures - avoid perfectly balanced paragraphs
-2. Include subtle imperfections like occasional contractions, sentence fragments, or conversational transitions
-3. Make it feel genuinely written by a human, not an AI
-4. Avoid overly perfect grammar or robotic phrasing
-5. Maintain a natural flow while improving persuasiveness
-
-SPECIFIC GUIDELINES FOR {stage.upper()}:
-{get_stage_guidelines(stage)}
-
-INDUSTRY-SPECIFIC TONE FOR {industry.upper()}:
-{get_industry_guidelines(industry)}
-
-FINAL CHECK BEFORE RETURNING:
-1. Count the total words in your response
-2. If over {max_words} words, trim content until below {max_words} words
-3. The word count limit of {max_words} words is a HARD REQUIREMENT, not a suggestion
-
-Your response should be ONLY the optimized email text with no explanations or comments."""
-
-    user_prompt = f"Please optimize this sales email:\n\n{email}"
-    
-    return {
-        "system": system_prompt,
-        "user": user_prompt
-    }
 
 def get_stage_guidelines(stage):
     guidelines = {
@@ -788,6 +609,15 @@ def get_stage_guidelines(stage):
 - Be professional but personable
 - End with a clear next step""",
         
+        "reminder_email": """
+- Be direct and clear about what action is needed
+- Provide context about why the action matters
+- Keep it concise and focused on a single call-to-action
+- Create appropriate urgency without being aggressive
+- Make the next steps extremely clear and simple
+- Include any relevant deadline information
+- End with a friendly, positive tone""",
+        
         "thank_you_email": """
 - Express genuine appreciation specifically
 - Personalize based on their action/purchase
@@ -796,8 +626,7 @@ def get_stage_guidelines(stage):
 - Keep it warm and authentic
 - Consider a small gesture or future incentive
 - End on a positive, forward-looking note""",
-        
-        "product_announcement": """
+"product_announcement": """
 - Lead with the most exciting aspect of the new product
 - Clearly explain the key benefits and value
 - Connect features to customer problems they solve
@@ -814,15 +643,6 @@ def get_stage_guidelines(stage):
 - Consider offering an incentive for completion
 - Use a friendly, conversational tone
 - Thank them in advance for their help""",
-        
-        "reminder_email": """
-- Be direct and clear about what action is needed
-- Provide context about why the action matters
-- Keep it concise and focused on a single call-to-action
-- Create appropriate urgency without being aggressive
-- Make the next steps extremely clear and simple
-- Include any relevant deadline information
-- End with a friendly, positive tone""",
         
         "milestone_email": """
 - Start with a celebratory, positive tone
@@ -848,15 +668,15 @@ def get_stage_guidelines(stage):
 def get_industry_guidelines(industry):
     industry = industry.lower()
     
-    # Handle custom industry
+    # Handle custom industry safely without f-strings containing backslashes
     if industry not in ["technology", "financial services", "healthcare", 
                       "manufacturing", "retail", "professional services"] and industry != "other":
-        return f"""
-- Adapt language to be appropriate for the {industry} industry
+        return """
+- Adapt language to be appropriate for the {0} industry
 - Focus on industry-specific challenges and solutions
 - Use terminology familiar to professionals in this field
 - Balance industry knowledge with accessible communication
-- Demonstrate understanding of industry-specific priorities and concerns"""
+- Demonstrate understanding of industry-specific priorities and concerns""".format(industry)
     
     guidelines = {
         "technology": """
@@ -907,9 +727,112 @@ def get_industry_guidelines(industry):
 - Use terminology familiar to professionals in this field
 - Balance industry knowledge with accessible communication
 - Demonstrate understanding of industry-specific priorities and concerns"""
-    }
+}
     
     return guidelines.get(industry, guidelines["other"])
+
+def create_optimization_prompt(email, stage, industry, persuasiveness, confidence, urgency, conciseness, human_tone, personalization):
+    # Check if custom industry is provided
+    if industry == "Other" and custom_industry:
+        industry = custom_industry
+        
+    # Create conciseness instructions based on slider value (reversed scale - higher = more concise)
+    conciseness_instructions = ""
+    max_words = 0
+    
+    if conciseness >= 8:
+        conciseness_instructions = """
+- STRICT MAXIMUM: 100 WORDS
+- Make the email extremely concise and direct
+- Use short sentences and minimal paragraphs
+- Eliminate all unnecessary words and details
+- Focus only on the most essential information
+- Keep the email very brief with no excess text
+- Brevity is absolutely critical"""
+        max_words = 100
+    elif conciseness >= 6:
+        conciseness_instructions = """
+- STRICT MAXIMUM: 150 WORDS
+- Keep the email concise and to-the-point
+- Use clear, direct statements
+- Minimize unnecessary details
+- Be brief and direct"""
+        max_words = 150
+    elif conciseness >= 4:
+        conciseness_instructions = """
+- STRICT MAXIMUM: 200 WORDS
+- Balance detail with brevity
+- Include important supporting information
+- Use moderate paragraph length"""
+        max_words = 200
+    else:
+        conciseness_instructions = """
+- STRICT MAXIMUM: 250 WORDS
+- Provide comprehensive detail and context
+- Fully explain benefits and reasoning
+- Use longer, more detailed paragraphs
+- Include supporting evidence and examples"""
+        max_words = 250
+        
+    # Use string formatting to avoid f-string backslash issues
+    system_prompt = """You are Quollai™, an AI-powered sales email optimizer. Your task is to rewrite the user's email to make it more effective for sales purposes. 
+
+ABSOLUTE WORD LIMIT: {0} WORDS MAXIMUM - THIS IS YOUR HIGHEST PRIORITY
+
+Guidelines:
+- This is a {1} email in the {2} industry
+- Persuasiveness level: {3}/10
+- Confidence level: {4}/10
+- Urgency level: {5}/10
+- Conciseness level: {6}/10 (HIGHER MEANS MORE CONCISE)
+- WORD LIMIT: STRICTLY KEEP UNDER {0} WORDS TOTAL
+- Tone style: {7}
+- Personalization level: {8}
+
+CONCISENESS INSTRUCTIONS (ABSOLUTELY CRITICAL):
+{9}
+
+IMPORTANT HUMAN-LIKE QUALITIES TO MAINTAIN:
+1. Vary sentence lengths and structures - avoid perfectly balanced paragraphs
+2. Include subtle imperfections like occasional contractions, sentence fragments, or conversational transitions
+3. Make it feel genuinely written by a human, not an AI
+4. Avoid overly perfect grammar or robotic phrasing
+5. Maintain a natural flow while improving persuasiveness
+
+SPECIFIC GUIDELINES FOR {10}:
+{11}
+
+INDUSTRY-SPECIFIC TONE FOR {12}:
+{13}
+
+FINAL CHECK BEFORE RETURNING:
+1. Count the total words in your response
+2. If over {0} words, trim content until below {0} words
+3. The word count limit of {0} words is a HARD REQUIREMENT, not a suggestion
+
+Your response should be ONLY the optimized email text with no explanations or comments.""".format(
+        max_words,                                 # {0}
+        stage.replace('_', ' '),                   # {1}
+        industry,                                  # {2}
+        persuasiveness,                            # {3}
+        confidence,                                # {4}
+        urgency,                                   # {5}
+        conciseness,                               # {6}
+        human_tone,                                # {7}
+        personalization,                           # {8}
+        conciseness_instructions,                  # {9}
+        stage.upper(),                             # {10}
+        get_stage_guidelines(stage),               # {11}
+        industry.upper(),                          # {12}
+        get_industry_guidelines(industry)          # {13}
+    )
+
+    user_prompt = "Please optimize this sales email:\n\n" + email
+    
+    return {
+        "system": system_prompt,
+        "user": user_prompt
+    }
 
 # Function to analyze the email
 def analyze_email(email):
@@ -934,15 +857,23 @@ def analyze_email(email):
         # Clear status message
         status_placeholder.empty()
         return f"Error: {str(e)}"
-
-# Function to optimize the email
+        # Function to optimize the email
 def optimize_email(email, stage, industry, persuasiveness, confidence, urgency, conciseness, human_tone, personalization):
     # Show status message
     status_placeholder.markdown('<div style="margin-top: 0.5rem;">Optimizing your email...</div>', unsafe_allow_html=True)
     
     try:
-        prompt = create_optimization_prompt(email, stage, industry, persuasiveness, 
-                                       confidence, urgency, conciseness, human_tone, personalization)
+        prompt = create_optimization_prompt(
+            email, 
+            stage, 
+            industry, 
+            persuasiveness, 
+            confidence, 
+            urgency, 
+            conciseness, 
+            human_tone, 
+            personalization
+        )
         
         # Calculate max_tokens based on conciseness level
         # This helps ensure we don't get responses that are too long
@@ -982,8 +913,9 @@ if analyze_button:
     else:
         # Get result
         analysis_result = analyze_email(input_email)
-        # Display the result with copy button
+        # Generate a unique key for this result
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        # Display the result with copy button
         display_output_with_copy_button(analysis_result, f"analysis_{timestamp}")
         st.session_state.result_displayed = True
 
@@ -1004,13 +936,14 @@ elif optimize_button:
             persuasiveness,
             confidence,
             urgency,
-            conciseness,  # Added conciseness parameter
+            conciseness,
             human_tone.lower(),
             personalization.lower()
         )
         
-        # Display the result with copy button
+        # Generate a unique key for this result
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
+        # Display the result with copy button
         display_output_with_copy_button(optimized_email, f"optimized_{timestamp}")
         st.session_state.result_displayed = True
 
