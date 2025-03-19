@@ -15,12 +15,15 @@ if not api_key and hasattr(st, "secrets"):
     api_key = st.secrets["openai"]["OPENAI_API_KEY"]
 client = OpenAI(api_key=api_key)
 
-# Set page configuration
+# Set page configuration with improved mobile view
 st.set_page_config(
     page_title="Quollai™ Sales Email Tool",
     page_icon="✉️",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
+    menu_items={
+        'About': "Quollai™ Sales Email Tool helps optimize your sales emails with AI."
+    }
 )
 
 # Function to embed an image as base64
@@ -56,6 +59,34 @@ html, body, [class*="css"] {
 }
 .main {
     background-color: black !important;
+}
+/* Force dark mode even on mobile */
+@media (max-width: 768px) {
+    body {
+        background-color: black !important;
+        color: white !important;
+    }
+    .stApp {
+        background-color: black !important;
+    }
+    .css-18e3th9 {
+        background-color: black !important;
+    }
+    .element-container, .stTextInput, .stSelectbox, .stSlider, .stRadio {
+        background-color: black !important;
+        color: white !important;
+    }
+    /* Improve text contrast */
+    p, span, label, div {
+        color: white !important;
+    }
+    /* Fix word limit text visibility */
+    div[style*="color: rgba(255,255,255,0.6)"] {
+        color: rgba(255,255,255,0.8) !important;
+        font-weight: 500 !important;
+        margin-bottom: 15px !important;
+        display: block !important;
+    }
 }
 .main .block-container {
     padding-top: 1rem;
@@ -497,15 +528,23 @@ with col3:
         word_limit = "200"
     
     st.markdown(f"""
-    <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; margin-left: 8px;">
+    <div style="font-size: 14px; color: rgba(255,255,255,0.8); margin-top: 4px; margin-left: 8px; margin-bottom: 15px; padding-bottom: 10px;">
         Word limit: approximately {word_limit} words
     </div>
     """, unsafe_allow_html=True)
 
-# Action buttons in a row
+# Action buttons in a row with added spacing
 col1, col2 = st.columns(2)
-analyze_button = col1.button("ANALYZE DRAFT EMAIL", use_container_width=True)
-optimize_button = col2.button("OPTIMIZE EMAIL", use_container_width=True)
+with col1:
+    st.markdown('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True)
+    analyze_button = st.button("ANALYZE DRAFT EMAIL", use_container_width=True)
+
+with col2:
+    st.markdown('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True)
+    optimize_button = st.button("OPTIMIZE EMAIL", use_container_width=True)
+
+# Add extra spacing after buttons
+st.markdown('<div style="margin-top: 15px;"></div>', unsafe_allow_html=True)
 
 # === LAYER 3: Output Text ===
 st.markdown('<div class="thin-header"><div class="section-header" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">Quollai<sup>TM</sup> Result</div></div>', unsafe_allow_html=True)
@@ -592,38 +631,41 @@ def create_optimization_prompt(email, stage, industry, persuasiveness, confidenc
     
     if conciseness >= 8:
         conciseness_instructions = """
+- STRICT MAXIMUM: 100 WORDS
 - Make the email extremely concise and direct
 - Use short sentences and minimal paragraphs
 - Eliminate all unnecessary words and details
 - Focus only on the most essential information
-- Keep the total email UNDER 100 WORDS
+- Keep the email very brief with no excess text
 - Brevity is absolutely critical"""
         max_words = 100
     elif conciseness >= 6:
         conciseness_instructions = """
+- STRICT MAXIMUM: 150 WORDS
 - Keep the email concise and to-the-point
 - Use clear, direct statements
 - Minimize unnecessary details
-- Keep the total email UNDER 150 WORDS
 - Be brief and direct"""
         max_words = 150
     elif conciseness >= 4:
         conciseness_instructions = """
+- STRICT MAXIMUM: 200 WORDS
 - Balance detail with brevity
 - Include important supporting information
-- Use moderate paragraph length
-- Keep the total email UNDER 200 WORDS"""
+- Use moderate paragraph length"""
         max_words = 200
     else:
         conciseness_instructions = """
+- STRICT MAXIMUM: 250 WORDS
 - Provide comprehensive detail and context
 - Fully explain benefits and reasoning
 - Use longer, more detailed paragraphs
-- Include supporting evidence and examples
-- Keep the total email UNDER 250 WORDS"""
+- Include supporting evidence and examples"""
         max_words = 250
         
     system_prompt = f"""You are Quollai™, an AI-powered sales email optimizer. Your task is to rewrite the user's email to make it more effective for sales purposes. 
+
+ABSOLUTE WORD LIMIT: {max_words} WORDS MAXIMUM - THIS IS YOUR HIGHEST PRIORITY
 
 Guidelines:
 - This is a {stage.replace('_', ' ')} email in the {industry} industry
@@ -631,8 +673,12 @@ Guidelines:
 - Confidence level: {confidence}/10
 - Urgency level: {urgency}/10
 - Conciseness level: {conciseness}/10 (HIGHER MEANS MORE CONCISE)
+- WORD LIMIT: STRICTLY KEEP UNDER {max_words} WORDS TOTAL
 - Tone style: {human_tone}
 - Personalization level: {personalization}
+
+CONCISENESS INSTRUCTIONS (ABSOLUTELY CRITICAL):
+{conciseness_instructions}
 
 IMPORTANT HUMAN-LIKE QUALITIES TO MAINTAIN:
 1. Vary sentence lengths and structures - avoid perfectly balanced paragraphs
@@ -641,19 +687,18 @@ IMPORTANT HUMAN-LIKE QUALITIES TO MAINTAIN:
 4. Avoid overly perfect grammar or robotic phrasing
 5. Maintain a natural flow while improving persuasiveness
 
-CONCISENESS INSTRUCTIONS (HIGHEST PRIORITY):
-{conciseness_instructions}
-
-WORD COUNT LIMIT: {max_words} WORDS MAXIMUM
-You MUST keep the email under {max_words} words total. This is not a suggestion but a requirement.
-
 SPECIFIC GUIDELINES FOR {stage.upper()}:
 {get_stage_guidelines(stage)}
 
 INDUSTRY-SPECIFIC TONE FOR {industry.upper()}:
 {get_industry_guidelines(industry)}
 
-Your response should be ONLY the optimized email text with no explanations or comments. Count your words carefully and ensure you stay under the {max_words} word limit."""
+FINAL CHECK BEFORE RETURNING:
+1. Count the total words in your response
+2. If over {max_words} words, trim content until below {max_words} words
+3. The word count limit of {max_words} words is a HARD REQUIREMENT, not a suggestion
+
+Your response should be ONLY the optimized email text with no explanations or comments."""
 
     user_prompt = f"Please optimize this sales email:\n\n{email}"
     
@@ -899,13 +944,25 @@ def optimize_email(email, stage, industry, persuasiveness, confidence, urgency, 
         prompt = create_optimization_prompt(email, stage, industry, persuasiveness, 
                                        confidence, urgency, conciseness, human_tone, personalization)
         
+        # Calculate max_tokens based on conciseness level
+        # This helps ensure we don't get responses that are too long
+        max_tokens = 1000
+        if conciseness >= 8:
+            max_tokens = 200  # For extremely concise emails (100 words)
+        elif conciseness >= 6:
+            max_tokens = 300  # For concise emails (150 words)
+        elif conciseness >= 4:
+            max_tokens = 400  # For balanced emails (200 words)
+        else:
+            max_tokens = 500  # For detailed emails (250 words)
+        
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": prompt["system"]},
                 {"role": "user", "content": prompt["user"]}
             ],
-            max_tokens=1000,
+            max_tokens=max_tokens,
             temperature=0.7
         )
         
