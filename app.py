@@ -463,20 +463,14 @@ output_placeholder = st.empty()
 status_placeholder = st.empty()
 
 def display_output_with_copy_button(text, key_suffix):
-    # Display the result text
-    output_area = st.text_area(
-        "Result", 
+    # Just display the result text with instructions
+    st.text_area(
+        "Result (Click inside text, press Ctrl+A to select all, then Ctrl+C to copy)", 
         value=text, 
         height=300, 
-        label_visibility="collapsed", 
         key=f"output_{key_suffix}"
     )
     
-    # Add a button that will just tell users to manually copy
-    st.info("To copy the text: Click in the text area, press Ctrl+A to select all, then Ctrl+C to copy (Cmd+A, Cmd+C on Mac)")
-    
-    return output_area
-
 # Define functions for analysis and optimization
 def create_analysis_prompt():
     """Create prompt for analyzing the original email"""
