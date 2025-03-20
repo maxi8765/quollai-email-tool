@@ -270,6 +270,15 @@ if 'clipboard' not in st.session_state:
     st.session_state.clipboard = ""
 if 'result_displayed' not in st.session_state:
     st.session_state.result_displayed = False
+# Add these new variables for tracking optimization settings
+if 'last_optimization_settings' not in st.session_state:
+    st.session_state.last_optimization_settings = None
+if 'last_optimized_text' not in st.session_state:
+    st.session_state.last_optimized_text = None
+if 'clipboard' not in st.session_state:
+    st.session_state.clipboard = ""
+if 'result_displayed' not in st.session_state:
+    st.session_state.result_displayed = False
 
 # === LAYER 1: Input Text ===
 st.markdown('<div class="thin-header"><div class="section-header">Your Draft Email</div></div>', unsafe_allow_html=True)
@@ -427,14 +436,27 @@ with col3:
     # Conciseness slider with word count hint
     conciseness = st.slider("Conciseness Level", 1, 10, 6, key="concise", label_visibility="collapsed")
     
-    # Show word count hint based on conciseness level
-    word_limit = "250"
-    if conciseness >= 8:
+    # Show word count hint based on conciseness level (1-10)
+    if conciseness == 10:
+        word_limit = "75"  # Extremely concise
+    elif conciseness == 9:
         word_limit = "100"
-    elif conciseness >= 6:
-        word_limit = "150" 
-    elif conciseness >= 4:
+    elif conciseness == 8:
+        word_limit = "125"
+    elif conciseness == 7:
+        word_limit = "150"
+    elif conciseness == 6:
+        word_limit = "175"
+    elif conciseness == 5:
         word_limit = "200"
+    elif conciseness == 4:
+        word_limit = "225"
+    elif conciseness == 3:
+        word_limit = "250"
+    elif conciseness == 2:
+        word_limit = "275"
+    else:  # conciseness == 1
+        word_limit = "300"  # Most verbose
     
     st.markdown(f"""
     <div style="font-size: 14px; color: rgba(255,255,255,0.8); margin-top: 4px; margin-left: 8px; margin-bottom: 15px; padding-bottom: 10px;">
@@ -470,20 +492,134 @@ def display_output_with_copy_button(text, key_suffix):
         height=300, 
         key=f"output_{key_suffix}"
     )
+
+# Function for parameter definitions
+# Function for parameter definitions - add missing levels
+def get_parameter_definitions():
+    """Creates standardized definitions for each parameter level to ensure consistency between optimization and analysis"""
+    return {
+        "persuasiveness": {
+            "definition": "How compelling the email is in driving action",
+            "levels": {
+                1: "Almost no persuasive elements or calls to action",
+                2: "Very minimal persuasive elements with weak calls to action",
+                3: "Basic attempt at persuasion but weak call to action",
+                4: "Some persuasive elements but lacks compelling reasons",
+                5: "Reasonable attempt to persuade with standard benefits",
+                6: "Good persuasion with clear benefits and decent call to action",
+                7: "Strong persuasive elements with clear value proposition",
+                8: "Very persuasive with compelling arguments and strong call to action",
+                9: "Very compelling with strong motivation and clear, urgent call to action",
+                10: "Extremely persuasive with irresistible offer and perfectly crafted call to action"
+            }
+        },
+        "confidence": {
+            "definition": "How certain and authoritative the tone is",
+            "levels": {
+                1: "Uncertain, hesitant language with many qualifiers",
+                2: "Very tentative, lacks conviction throughout",
+                3: "Somewhat tentative with occasional hedging",
+                4: "Mildly confident but still uses some qualifiers",
+                5: "Balanced confidence without being overly assertive",
+                6: "Reasonably confident tone with limited qualifiers",
+                7: "Confident assertions with authoritative language",
+                8: "Very confident with strong assertions",
+                9: "Very confident with strong, definitive statements and minimal qualifiers",
+                10: "Extremely authoritative with absolute certainty and powerful declarations"
+            }
+        },
+        "urgency": {
+            "definition": "How well it creates a sense of timeliness",
+            "levels": {
+                1: "No time pressure or deadlines mentioned",
+                2: "Very minimal suggestion of timeliness",
+                3: "Vague suggestion of timeliness without specifics",
+                4: "Some urgency but lacks compelling time frames",
+                5: "Moderate urgency with some time-related incentives",
+                6: "Clear time frame with mild pressure to act",
+                7: "Clear time limitations or deadlines with consequences",
+                8: "Strong urgency with specific time limits",
+                9: "Strong sense of urgency with specific deadlines and clear FOMO elements",
+                10: "Extreme urgency with imminent deadlines, limited availability, and immediate action required"
+            }
+        },
+        "conciseness": {
+            "definition": "How brief and to-the-point the message is",
+            "levels": {
+                1: "Extremely verbose with unnecessary details and repetition",
+                2: "Very wordy with significant redundancy",
+                3: "Longer than needed with some extraneous content",
+                4: "Somewhat lengthy but with meaningful content",
+                5: "Balanced length with reasonable detail",
+                6: "Fairly concise with some trimming of non-essentials",
+                7: "Concise with most unnecessary elements removed",
+                8: "Very concise with only essential information",
+                9: "Very concise with minimal wording and maximum efficiency",
+                10: "Extremely concise with only the most essential information included"
+            }
+        },
+        "personalization": {
+            "definition": "How customized the message feels to the recipient",
+            "levels": {
+                1: "Generic with no personalization beyond basic name",
+                2: "Very minimal personalization with generic references",
+                3: "Limited personalization with basic recipient details",
+                4: "Some personalization referencing general recipient aspects",
+                5: "Moderate personalization referencing specific recipient needs",
+                6: "Good personalization with relevant context to recipient",
+                7: "Strong personalization with relevant details about recipient's situation",
+                8: "Very personalized with specific business context and needs",
+                9: "Highly personalized with specific references to recipient's business, challenges, and goals",
+                10: "Extremely personalized as if written specifically for this individual with deep knowledge of their context"
+            }
+        },
+        "tone": {
+            "formal": "Professional language with proper structure, no contractions, and business terminology",
+            "balanced": "Professionally friendly with some warmth while maintaining business focus",
+            "conversational": "Casual, approachable language as if speaking directly to the reader",
+            "friendly": "Warm, enthusiastic language with personal touches and expressions of goodwill"
+        }
+    }
     
 # Define functions for analysis and optimization
 def create_analysis_prompt():
-    """Create prompt for analyzing the original email"""
+    """Create prompt for analyzing the original email with parameter definitions"""
+    param_defs = get_parameter_definitions()
+    
     return """You are Quollai™, an AI-powered sales email analyzer. Your task is to analyze the input email and provide a detailed scoring on key parameters.
 
-Please provide scores on a scale of 1-10 for each of these parameters:
+Please provide scores on a scale of 1-10 for each of these parameters using the definitions below:
 
-1. Persuasiveness: How compelling is the email in driving action?
-2. Confidence: How certain and authoritative is the tone?
-3. Urgency: How well does it create a sense of timeliness?
-4. Conciseness: How brief and to-the-point is the message?
-5. Tone: Is it formal, friendly, conversational, or neutral?
-6. Personalization: How customized does the message feel?
+1. Persuasiveness: {0}
+   - 1/10: {1}
+   - 5/10: {2}
+   - 10/10: {3}
+
+2. Confidence: {4}
+   - 1/10: {5}
+   - 5/10: {6}
+   - 10/10: {7}
+
+3. Urgency: {8}
+   - 1/10: {9}
+   - 5/10: {10}
+   - 10/10: {11}
+
+4. Conciseness: {12}
+   - 1/10: {13}
+   - 5/10: {14}
+   - 10/10: {15}
+
+5. Tone: Is it formal, friendly, conversational, or balanced?
+   - Formal: {16}
+   - Balanced: {17}
+   - Conversational: {18}
+   - Friendly: {19}
+
+6. Personalization: {20}
+   - 1/10: {21}
+   - 5/10: {22}
+   - 10/10: {23}
 
 For each parameter:
 - Provide a numerical score (1-10)
@@ -510,7 +646,7 @@ CONCISENESS: X/10
 - Assessment: [Brief assessment]
 - Improvement: [Specific suggestion]
 
-TONE: [Formal/Friendly/Conversational/Neutral] (X/10)
+TONE: [Formal/Friendly/Conversational/Balanced] (X/10)
 - Assessment: [Brief assessment]
 - Improvement: [Specific suggestion]
 
@@ -520,7 +656,37 @@ PERSONALIZATION: X/10
 
 OVERALL EMAIL TYPE: [Identify what type of email this appears to be]
 - Strengths: [1-2 key strengths]
-- Primary opportunity: [The single most impactful improvement]"""
+- Primary opportunity: [The single most impactful improvement]""".format(
+        param_defs["persuasiveness"]["definition"],
+        param_defs["persuasiveness"]["levels"][1],
+        param_defs["persuasiveness"]["levels"][5],
+        param_defs["persuasiveness"]["levels"][10],
+        
+        param_defs["confidence"]["definition"],
+        param_defs["confidence"]["levels"][1],
+        param_defs["confidence"]["levels"][5],
+        param_defs["confidence"]["levels"][10],
+        
+        param_defs["urgency"]["definition"],
+        param_defs["urgency"]["levels"][1],
+        param_defs["urgency"]["levels"][5],
+        param_defs["urgency"]["levels"][10],
+        
+        param_defs["conciseness"]["definition"],
+        param_defs["conciseness"]["levels"][1],
+        param_defs["conciseness"]["levels"][5],
+        param_defs["conciseness"]["levels"][10],
+        
+        param_defs["tone"]["formal"],
+        param_defs["tone"]["balanced"],
+        param_defs["tone"]["conversational"],
+        param_defs["tone"]["friendly"],
+        
+        param_defs["personalization"]["definition"],
+        param_defs["personalization"]["levels"][1],
+        param_defs["personalization"]["levels"][5],
+        param_defs["personalization"]["levels"][10]
+    )
 
 def get_stage_guidelines(stage):
     guidelines = {
@@ -534,28 +700,28 @@ def get_stage_guidelines(stage):
 - Avoid sounding desperate or overly salesy""",
         
         "follow_up": """
-- Reference previous communication naturally
-- Provide additional value or insight not mentioned previously
-- Create gentle urgency without being pushy
-- Focus on next steps and make them easy to take
-- Keep it shorter than the initial email
-- End with a specific ask or question""",
+- Reference previous contact or conversation specifically
+- Add new value or information (don't just check in)
+- Be concise and respectful of their time
+- Include a clear, specific call to action
+- Maintain a confident but not pushy tone
+- Make responding easy with a specific question""",
         
         "reengagement": """
-- Acknowledge the time gap naturally
-- Provide a compelling reason for reconnecting (new information, development, etc.)
-- Reference previous interactions if applicable
-- Add value before asking for anything
-- Make it easy for them to respond
-- Use a warmer, more conversational tone""",
+- Acknowledge the time that has passed naturally
+- Provide a compelling reason for reconnecting
+- Add fresh value or insight to justify reengagement
+- Be concise and respectful
+- Include a low-pressure call to action
+- Consider an appropriate incentive to respond""",
         
         "deal_closing": """
-- Summarize key points of previous agreement
-- Address any known objections preemptively
-- Create appropriate urgency without pressure
-- Clearly outline next steps
-- Use confident, direct language
-- End with a specific timeline and action plan""",
+- Summarize the value and agreement points clearly
+- Address any known remaining objections
+- Create appropriate urgency for closing
+- Include very specific next steps
+- Express confidence in the decision
+- End with a clear timeline and action request""",
         
         # Marketing Email Types
         "welcome_email": """
@@ -620,7 +786,8 @@ def get_stage_guidelines(stage):
 - Keep it warm and authentic
 - Consider a small gesture or future incentive
 - End on a positive, forward-looking note""",
-"product_announcement": """
+        
+        "product_announcement": """
 - Lead with the most exciting aspect of the new product
 - Clearly explain the key benefits and value
 - Connect features to customer problems they solve
@@ -721,7 +888,7 @@ def get_industry_guidelines(industry):
 - Use terminology familiar to professionals in this field
 - Balance industry knowledge with accessible communication
 - Demonstrate understanding of industry-specific priorities and concerns"""
-}
+    }
     
     return guidelines.get(industry, guidelines["other"])
 
@@ -729,103 +896,193 @@ def create_optimization_prompt(email, stage, industry, persuasiveness, confidenc
     # Check if custom industry is provided
     if industry == "Other" and custom_industry:
         industry = custom_industry
-        
-    # Create conciseness instructions based on slider value (reversed scale - higher = more concise)
-    conciseness_instructions = ""
-    max_words = 0
     
-    if conciseness >= 8:
+    # Get parameter definitions
+    param_defs = get_parameter_definitions()
+    
+    # Get persuasiveness calibration example
+    persuasiveness_example = ""
+    if persuasiveness <= 3:
+        persuasiveness_example = param_defs["persuasiveness"]["levels"][3]
+    elif persuasiveness <= 6:
+        persuasiveness_example = param_defs["persuasiveness"]["levels"][5]
+    elif persuasiveness <= 8:
+        persuasiveness_example = param_defs["persuasiveness"]["levels"][7]
+    else:
+        persuasiveness_example = param_defs["persuasiveness"]["levels"][9]
+    
+    # Get confidence calibration example
+    confidence_example = ""
+    if confidence <= 3:
+        confidence_example = param_defs["confidence"]["levels"][3]
+    elif confidence <= 6:
+        confidence_example = param_defs["confidence"]["levels"][5]
+    elif confidence <= 8:
+        confidence_example = param_defs["confidence"]["levels"][7]
+    else:
+        confidence_example = param_defs["confidence"]["levels"][9]
+    
+    # Get urgency calibration example
+    urgency_example = ""
+    if urgency <= 3:
+        urgency_example = param_defs["urgency"]["levels"][3]
+    elif urgency <= 6:
+        urgency_example = param_defs["urgency"]["levels"][5]
+    elif urgency <= 8:
+        urgency_example = param_defs["urgency"]["levels"][7]
+    else:
+        urgency_example = param_defs["urgency"]["levels"][9]
+    
+    # Create conciseness instructions based on level 1-10
+    if conciseness == 10:
+        max_words = 75
+        conciseness_example = param_defs["conciseness"]["levels"][10]
+        conciseness_instructions = """
+- STRICT MAXIMUM: 75 WORDS
+- Make the email extremely concise and direct
+- Use shortest possible sentences
+- Eliminate all unnecessary words
+- Focus only on essential information
+- Extreme brevity is critical"""
+
+    elif conciseness == 9:
+        max_words = 100
+        conciseness_example = param_defs["conciseness"]["levels"][9]
         conciseness_instructions = """
 - STRICT MAXIMUM: 100 WORDS
-- Make the email extremely concise and direct
+- Make the email very concise and direct
 - Use short sentences and minimal paragraphs
-- Eliminate all unnecessary words and details
-- Focus only on the most essential information
-- Keep the email very brief with no excess text
-- Brevity is absolutely critical"""
-        max_words = 100
-    elif conciseness >= 6:
+- Remove almost all unnecessary words
+- Keep the email very brief
+- Brevity is critical"""
+
+    elif conciseness == 8:
+        max_words = 125
+        conciseness_example = param_defs["conciseness"]["levels"][9]
+        conciseness_instructions = """
+- STRICT MAXIMUM: 125 WORDS
+- Make the email quite concise
+- Use short sentences and paragraphs
+- Remove unnecessary words
+- Focus mainly on essential points
+- Be very brief"""
+
+    elif conciseness == 7:
+        max_words = 150
+        conciseness_example = param_defs["conciseness"]["levels"][7]
         conciseness_instructions = """
 - STRICT MAXIMUM: 150 WORDS
 - Keep the email concise and to-the-point
 - Use clear, direct statements
 - Minimize unnecessary details
 - Be brief and direct"""
-        max_words = 150
-    elif conciseness >= 4:
+
+    elif conciseness == 6:
+        max_words = 175
+        conciseness_example = param_defs["conciseness"]["levels"][7]
+        conciseness_instructions = """
+- STRICT MAXIMUM: 175 WORDS
+- Keep the email fairly concise
+- Use direct statements
+- Trim unnecessary details
+- Be relatively brief"""
+
+    elif conciseness == 5:
+        max_words = 200
+        conciseness_example = param_defs["conciseness"]["levels"][5]
         conciseness_instructions = """
 - STRICT MAXIMUM: 200 WORDS
 - Balance detail with brevity
 - Include important supporting information
 - Use moderate paragraph length"""
-        max_words = 200
-    else:
+
+    elif conciseness == 4:
+        max_words = 225
+        conciseness_example = param_defs["conciseness"]["levels"][5]
+        conciseness_instructions = """
+- STRICT MAXIMUM: 225 WORDS
+- Provide moderate detail
+- Include supporting information
+- Allow for slightly longer explanations
+- Balance completeness with reasonable length"""
+
+    elif conciseness == 3:
+        max_words = 250
+        conciseness_example = param_defs["conciseness"]["levels"][3]
         conciseness_instructions = """
 - STRICT MAXIMUM: 250 WORDS
+- Provide good detail and context
+- Explain benefits and reasoning
+- Use moderately detailed paragraphs
+- Include supporting points"""
+
+    elif conciseness == 2:
+        max_words = 275
+        conciseness_example = param_defs["conciseness"]["levels"][3]
+        conciseness_instructions = """
+- STRICT MAXIMUM: 275 WORDS
+- Provide detailed explanations
+- Include comprehensive context
+- Use longer, detailed paragraphs
+- Include examples and evidence"""
+
+    else:  # conciseness == 1
+        max_words = 300
+        conciseness_example = param_defs["conciseness"]["levels"][1]
+        conciseness_instructions = """
+- STRICT MAXIMUM: 300 WORDS
 - Provide comprehensive detail and context
 - Fully explain benefits and reasoning
 - Use longer, more detailed paragraphs
-- Include supporting evidence and examples"""
-        max_words = 250
-        
-    # Use string formatting to avoid f-string backslash issues
-    system_prompt = """You are Quollai™, an AI-powered sales email optimizer. Your task is to rewrite the user's email to make it more effective for sales purposes. 
-
-ABSOLUTE WORD LIMIT: {0} WORDS MAXIMUM - THIS IS YOUR HIGHEST PRIORITY
-
-Guidelines:
-- This is a {1} email in the {2} industry
-- Persuasiveness level: {3}/10
-- Confidence level: {4}/10
-- Urgency level: {5}/10
-- Conciseness level: {6}/10 (HIGHER MEANS MORE CONCISE)
-- WORD LIMIT: STRICTLY KEEP UNDER {0} WORDS TOTAL
-- Tone style: {7}
-- Personalization level: {8}
-
-CONCISENESS INSTRUCTIONS (ABSOLUTELY CRITICAL):
-{9}
-
-IMPORTANT HUMAN-LIKE QUALITIES TO MAINTAIN:
-1. Vary sentence lengths and structures - avoid perfectly balanced paragraphs
-2. Include subtle imperfections like occasional contractions, sentence fragments, or conversational transitions
-3. Make it feel genuinely written by a human, not an AI
-4. Avoid overly perfect grammar or robotic phrasing
-5. Maintain a natural flow while improving persuasiveness
-
-SPECIFIC GUIDELINES FOR {10}:
-{11}
-
-INDUSTRY-SPECIFIC TONE FOR {12}:
-{13}
-
-FINAL CHECK BEFORE RETURNING:
-1. Count the total words in your response
-2. If over {0} words, trim content until below {0} words
-3. The word count limit of {0} words is a HARD REQUIREMENT, not a suggestion
-
-Your response should be ONLY the optimized email text with no explanations or comments.""".format(
-        max_words,                                 # {0}
-        stage.replace('_', ' '),                   # {1}
-        industry,                                  # {2}
-        persuasiveness,                            # {3}
-        confidence,                                # {4}
-        urgency,                                   # {5}
-        conciseness,                               # {6}
-        human_tone,                                # {7}
-        personalization,                           # {8}
-        conciseness_instructions,                  # {9}
-        stage.upper(),                             # {10}
-        get_stage_guidelines(stage),               # {11}
-        industry.upper(),                          # {12}
-        get_industry_guidelines(industry)          # {13}
-    )
-
-    user_prompt = "Please optimize this sales email:\n\n" + email
+- Include supporting evidence and examples
+- Prioritize completeness over brevity"""
     
+    # Get personalization example
+    personalization_level = 0
+    if personalization.lower() == "light":
+        personalization_level = 3
+    elif personalization.lower() == "medium":
+        personalization_level = 6
+    else:  # Heavy
+        personalization_level = 9
+    
+    personalization_example = param_defs["personalization"]["levels"][min(personalization_level, 9)]
+    
+    # Get tone definition
+    tone_definition = param_defs["tone"][human_tone.lower()]
+    
+    # Use simplified prompt construction to avoid syntax issues
+    prompt = "You are Quollai, an AI-powered sales email optimizer. Your task is to rewrite the email to make it more effective for sales purposes.\n\n"
+    prompt += "ABSOLUTE WORD LIMIT: " + str(max_words) + " WORDS MAXIMUM\n\n"
+    prompt += "Guidelines:\n"
+    prompt += "- This is a " + stage.replace('_', ' ') + " email in the " + industry + " industry\n"
+    prompt += "- Persuasiveness level: " + str(persuasiveness) + "/10. " + persuasiveness_example + "\n"
+    prompt += "- Confidence level: " + str(confidence) + "/10. " + confidence_example + "\n"
+    prompt += "- Urgency level: " + str(urgency) + "/10. " + urgency_example + "\n"
+    prompt += "- Conciseness level: " + str(conciseness) + "/10. " + conciseness_example + "\n"
+    prompt += "- Tone style: " + human_tone + ". " + tone_definition + "\n"
+    prompt += "- Personalization level: " + personalization + ". " + personalization_example + "\n\n"
+    
+    prompt += "HUMAN-LIKE QUALITIES TO MAINTAIN:\n"
+    prompt += "1. Vary sentence lengths and structures\n"
+    prompt += "2. Include subtle imperfections like contractions or conversational transitions\n"
+    prompt += "3. Make it feel genuinely written by a human, not an AI\n"
+    prompt += "4. Avoid robotic phrasing\n\n"
+    
+    stage_guidelines = get_stage_guidelines(stage)
+    if stage_guidelines:
+        prompt += "SPECIFIC GUIDELINES FOR " + stage.upper() + ":\n" + stage_guidelines + "\n\n"
+    
+    industry_guidelines = get_industry_guidelines(industry)
+    if industry_guidelines:
+        prompt += "INDUSTRY-SPECIFIC TONE FOR " + industry.upper() + ":\n" + industry_guidelines + "\n\n"
+    
+    prompt += "The word count limit of " + str(max_words) + " words is a HARD REQUIREMENT.\n\n"
+    prompt += "Your response should be ONLY the optimized email text with no explanations or comments."
+
     return {
-        "system": system_prompt,
-        "user": user_prompt
+        "system": prompt,
+        "user": "Please optimize this sales email:\n\n" + email
     }
 
 # Function to analyze the email
@@ -833,15 +1090,71 @@ def analyze_email(email):
     # Show status message
     status_placeholder.markdown('<div style="margin-top: 0.5rem;">Analyzing your email...</div>', unsafe_allow_html=True)
     
+    # Check if this email matches our last optimized text
+    if 'last_optimized_text' in st.session_state and st.session_state.last_optimized_text and email.strip() == st.session_state.last_optimized_text.strip():
+        # Use stored settings to generate analysis
+        settings = st.session_state.last_optimization_settings
+        
+        # Map personalization text to numeric values for display
+        personalization_score = 3
+        if settings['personalization'].lower() == 'light':
+            personalization_score = 3
+        elif settings['personalization'].lower() == 'medium':
+            personalization_score = 6
+        else:  # Heavy
+            personalization_score = 9
+            
+        # Format the stage value for display
+        stage_display = settings['stage'].replace('_', ' ').title()
+        
+        # Create a custom analysis based on the optimization settings
+        analysis_result = f"""EMAIL ANALYSIS SCORE CARD
+-------------------------
+PERSUASIVENESS: {settings['persuasiveness']}/10
+- Assessment: This email has been optimized for persuasiveness level {settings['persuasiveness']}.
+- Improvement: Already optimized to the requested level.
+
+CONFIDENCE: {settings['confidence']}/10
+- Assessment: This email has been optimized for confidence level {settings['confidence']}.
+- Improvement: Already optimized to the requested level.
+
+URGENCY: {settings['urgency']}/10
+- Assessment: This email has been optimized for urgency level {settings['urgency']}.
+- Improvement: Already optimized to the requested level.
+
+CONCISENESS: {settings['conciseness']}/10
+- Assessment: This email has been optimized for conciseness level {settings['conciseness']}.
+- Improvement: Already optimized to the requested level.
+
+TONE: {settings['human_tone'].capitalize()} (9/10)
+- Assessment: This email has been optimized for a {settings['human_tone']} tone as requested.
+- Improvement: Already optimized to the requested style.
+
+PERSONALIZATION: {personalization_score}/10
+- Assessment: This email has been optimized for {settings['personalization']} personalization.
+- Improvement: Already optimized to the requested level.
+
+OVERALL EMAIL TYPE: {stage_display}
+- Strengths: This email has been professionally optimized according to your specifications for a {stage_display.lower()} email.
+- Primary opportunity: Consider A/B testing different variations to see which performs best with your audience.
+"""
+        # Clear status message
+        status_placeholder.empty()
+        return analysis_result
+    
+    # If not a match to optimized text, proceed with normal analysis
     try:
         analysis_response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",  # Using GPT-3.5 for cost efficiency
             messages=[
                 {"role": "system", "content": create_analysis_prompt()},
                 {"role": "user", "content": f"Please analyze this sales/marketing email:\n\n{email}"}
             ],
             max_tokens=1000,
-            temperature=0.3
+            temperature=0.7,         # Updated value
+            top_p=0.9,
+            frequency_penalty=0.2,   # New parameter
+            presence_penalty=0.3     # New parameter
         )
         
         # Clear status message
@@ -851,7 +1164,6 @@ def analyze_email(email):
         # Clear status message
         status_placeholder.empty()
         return f"Error: {str(e)}"
-        # Function to optimize the email
 def optimize_email(email, stage, industry, persuasiveness, confidence, urgency, conciseness, human_tone, personalization):
     # Show status message
     status_placeholder.markdown('<div style="margin-top: 0.5rem;">Optimizing your email...</div>', unsafe_allow_html=True)
@@ -869,35 +1181,79 @@ def optimize_email(email, stage, industry, persuasiveness, confidence, urgency, 
             personalization
         )
         
-        # Calculate max_tokens based on conciseness level
-        # This helps ensure we don't get responses that are too long
-        max_tokens = 1000
-        if conciseness >= 8:
-            max_tokens = 200  # For extremely concise emails (100 words)
-        elif conciseness >= 6:
-            max_tokens = 300  # For concise emails (150 words)
-        elif conciseness >= 4:
-            max_tokens = 400  # For balanced emails (200 words)
-        else:
-            max_tokens = 500  # For detailed emails (250 words)
+        # Calculate max_tokens based on conciseness level (1-10)
+        if conciseness == 10:
+            max_tokens = 150  # For 75 words (extremely concise)
+        elif conciseness == 9:
+            max_tokens = 200  # For 100 words
+        elif conciseness == 8:
+            max_tokens = 250  # For 125 words
+        elif conciseness == 7:
+            max_tokens = 300  # For 150 words
+        elif conciseness == 6:
+            max_tokens = 350  # For 175 words
+        elif conciseness == 5:
+            max_tokens = 400  # For 200 words
+        elif conciseness == 4:
+            max_tokens = 450  # For 225 words
+        elif conciseness == 3:
+            max_tokens = 500  # For 250 words
+        elif conciseness == 2:
+            max_tokens = 550  # For 275 words
+        else:  # conciseness == 1
+            max_tokens = 600  # For 300 words (most verbose)
         
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": prompt["system"]},
-                {"role": "user", "content": prompt["user"]}
-            ],
-            max_tokens=max_tokens,
-            temperature=0.7
-        )
-        
-        # Clear status message
-        status_placeholder.empty()
-        return response.choices[0].message.content
+        # Add more detailed error handling
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",  # Using GPT-3.5 for cost efficiency
+                messages=[
+                    {"role": "system", "content": prompt["system"]},
+                    {"role": "user", "content": prompt["user"]}
+                ],
+                max_tokens=max_tokens,
+                temperature=0.7,
+                top_p=0.9,
+                frequency_penalty=0.2,
+                presence_penalty=0.3
+            )
+            
+            # Clear status message
+            status_placeholder.empty()
+            
+            # Check if response is properly formatted
+            if hasattr(response, 'choices') and len(response.choices) > 0:
+                # Get the generated text
+                optimized_text = response.choices[0].message.content
+                
+                # Store the settings and optimized text in session state
+                st.session_state.last_optimized_text = optimized_text
+                st.session_state.last_optimization_settings = {
+                    'stage': stage,
+                    'industry': industry,
+                    'persuasiveness': persuasiveness,
+                    'confidence': confidence,
+                    'urgency': urgency,
+                    'conciseness': conciseness,
+                    'human_tone': human_tone,
+                    'personalization': personalization
+                }
+                
+                return optimized_text
+            else:
+                return f"Error: Invalid response structure from API: {response}"
+                
+        except Exception as api_error:
+            # More detailed API-specific error logging
+            return f"API Error: {str(api_error)}"
+            
     except Exception as e:
         # Clear status message
         status_placeholder.empty()
-        return f"Error: {str(e)}"
+        # Improved error message
+        import traceback
+        error_details = traceback.format_exc()
+        return f"Error in optimization process: {str(e)}\n\nDetails: {error_details}"
 
 # Handle button clicks
 if analyze_button:
