@@ -1206,7 +1206,7 @@ def optimize_email(email, stage, industry, persuasiveness, confidence, urgency, 
         # Add more detailed error handling
         try:
             response = client.chat.completions.create(
-                model="gpt-3.5-turbo",  # Using GPT-3.5 for cost efficiency
+                model="gpt-4o",  # Using GPT-3.5 for cost efficiency
                 messages=[
                     {"role": "system", "content": prompt["system"]},
                     {"role": "user", "content": prompt["user"]}
