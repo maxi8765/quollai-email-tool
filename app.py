@@ -9,11 +9,7 @@ from datetime import datetime
 load_dotenv()
 
 # Initialize OpenAI client
-# Try to get API key from environment first, fall back to secrets
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key and hasattr(st, "secrets"):
-    api_key = st.secrets["openai"]["OPENAI_API_KEY"]
-client = OpenAI(api_key=api_key)
+client = OpenAI(api_key="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")
 
 # Set page configuration with improved mobile view
 st.set_page_config(
