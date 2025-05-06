@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-import openai
+from openai import openai
 from dotenv import load_dotenv
 import base64
 from datetime import datetime
@@ -8,22 +8,14 @@ from datetime import datetime
 # Load environment variables from .env file
 load_dotenv()
 
-import os
-import openai
 from dotenv import load_dotenv
-
 # Load .env
-load_dotenv()
-
-# Get and set API key
 api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("API key missing")
-openai.api_key = api_key
 
-# Call the model using openai (not client)
-response = openai.chat.completions.create(
-    model="gpt-4"
+if not api_key:
+    raise ValueError("OPENAI_API_KEY environment variable is not set!")
+
+client = OpenAI(api_key=api_key)
 
 # Set page configuration with improved mobile view
 st.set_page_config(
