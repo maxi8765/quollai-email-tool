@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from openai import openai
+from openai import OpenAI
 from dotenv import load_dotenv
 import base64
 from datetime import datetime
