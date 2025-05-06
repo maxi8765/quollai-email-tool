@@ -8,8 +8,8 @@ from datetime import datetime
 # Load environment variables from .env file
 load_dotenv()
 
-# Initialize OpenAI client
-client = OpenAI(api_key="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")
+api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=api_key)
 
 # Set page configuration with improved mobile view
 st.set_page_config(
