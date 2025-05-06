@@ -8,8 +8,13 @@ from datetime import datetime
 # Load environment variables from .env file
 load_dotenv()
 
+# Get API key from environment
 api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key)
+if not api_key:
+    raise ValueError("OPENAI_API_KEY environment variable is not set!")
+
+# Assign the key to the OpenAI module
+openai.api_key = api_key
 
 # Set page configuration with improved mobile view
 st.set_page_config(
